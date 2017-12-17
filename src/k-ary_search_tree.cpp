@@ -416,183 +416,233 @@ void construct_tree(keytype* array, indextype size) {
 }
 
 template<indextype k = 3>
+void assignpos(keytype *index_array, indextype rank, indextype depth,
+		indextype height, keytype *index_tree) {
+	if (height) {
+		for (indextype i = 0; i < k - 1; i++) {
+			index_tree[PERFECT_SIZES[depth] + (k - 1) * rank + i] =
+					index_array[PERFECT_SIZES[height - 1] * (i + 1) + i];
+		}
+		height--;
+		depth++;
+		for (indextype i = 0; i < k; i++) {
+			index_array += PERFECT_SIZES[height] * i + i;
+			assignpos(index_array, rank * k + i, depth, height, index_tree);
+		}
+	}
+}
+
+template<indextype k = 3>
+void construct_tree_simd(keytype* array, indextype size) {
+	indextype height = getTreeHeight(size);
+	indextype remainder = (size) - PERFECT_SIZES[height];
+	keytype tmp[size];
+
+// complete tree
+	if (_LIKELY(remainder)) {
+
+	}
+// perfect tree
+	else {
+		assignpos<k>(array, 0, 0, height, tmp);
+
+		// initialize the root outside the loop
+		for (indextype i = 0; i < k - 1; i++) {
+			tmp[i] = array[PERFECT_SIZES[height - 1] * (i + 1) + i];
+		}
+
+		indextype l = k - 1; //index pointing tmp
+
+		// assume height >= 2
+		for (indextype h = height - 2, num_of_elements = k * (k - 1); h > 0;
+				h--, num_of_elements *= k) {
+			// collect elements for each level
+			for (indextype i = 0; i < num_of_elements; i++) {
+				indextype currentinterval = PERFECT_SIZES[h] * (i + 1) + i;
+				indextype
+			start=
+//				tmp[l++] = array[PERFECT_SIZES[h] * (i + 1) + i];
+		}
+	}
+}
+memmove(array, tmp, size * sizeof(keytype));
+}
+template<indextype k = 3>
 class ktree {
 public:
-	indextype size() {
-		return m_size;
-	}
+indextype size() {
+	return m_list.size();
+}
 
-	indextype height() {
-		return m_height;
-	}
+indextype height() {
+	return m_height;
+}
 
-	indextype k_size() {
-		return k;
-	}
+indextype k_size() {
+	return k;
+}
 
-	ktree(const keytype* array, indextype _size) {
-		m_size = _size;
-		m_list.resize(m_size);
+ktree(const keytype* array, indextype _size) {
 
-		m_height = getTreeHeight(_size);
-		indextype remainder = (_size) - PERFECT_SIZES[m_height];
+	m_list.resize(_size);
 
-		// complete tree
-		if (_LIKELY(remainder)) {
-			remainder = (_size) - PERFECT_SIZES[m_height - 1];
-			indextype fringe_entry = (remainder - 1) * k / (k - 1);
+	m_height = getTreeHeight(_size);
+	indextype remainder = (_size) - PERFECT_SIZES[m_height];
 
-			indextype digits[100];
-			m_list[PERFECT_SIZES[m_height - 1]] = array[0];
-			for (indextype i = 1; i <= fringe_entry; i++) {
-				indextype pos = 0;
-				indextype ind = i;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 1;
-				indextype offset = 0;
-				for (indextype p = pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
+// complete tree
+	if (_LIKELY(remainder)) {
+		remainder = (_size) - PERFECT_SIZES[m_height - 1];
+		indextype fringe_entry = (remainder - 1) * k / (k - 1);
+
+		indextype digits[100];
+		m_list[PERFECT_SIZES[m_height - 1]] = array[0];
+		for (indextype i = 1; i <= fringe_entry; i++) {
+			indextype pos = 0;
+			indextype ind = i;
+			while (ind != 0) {
+				indextype rmd = ind % k;
+				ind = ind / k;
+				digits[pos] = rmd;
+				pos++;
 			}
-			for (indextype i = fringe_entry + 1; i < _size; i++) {
-				indextype pos = 0;
-				indextype ind = i - remainder;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 2;
-				indextype offset = 0;
-				for (indextype p = pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
+			digits[pos] = 0;
+			// pos--;
+			indextype j = 0;
+			while (digits[j] == k - 1)
+				j++;
+			indextype depth = m_height - j - 1;
+			indextype offset = 0;
+			for (indextype p = pos - 1; p > j; p--) {
+				offset = offset * k + digits[p] * (k - 1);
 			}
+			offset += digits[j] + PERFECT_SIZES[depth];
+			m_list[offset] = array[i];
 		}
-		// perfect tree
-		else {
-			indextype digits[100];
-			m_list[PERFECT_SIZES[m_height - 1]] = array[0];
-			for (indextype i = 1; i < _size; i++) {
-				indextype pos = 0;
-				indextype ind = i;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 1;
-				indextype offset = 0;
-				for (indextype p = pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
+		for (indextype i = fringe_entry + 1; i < _size; i++) {
+			indextype pos = 0;
+			indextype ind = i - remainder;
+			while (ind != 0) {
+				indextype rmd = ind % k;
+				ind = ind / k;
+				digits[pos] = rmd;
+				pos++;
 			}
+			digits[pos] = 0;
+			// pos--;
+			indextype j = 0;
+			while (digits[j] == k - 1)
+				j++;
+			indextype depth = m_height - j - 2;
+			indextype offset = 0;
+			for (indextype p = pos - 1; p > j; p--) {
+				offset = offset * k + digits[p] * (k - 1);
+			}
+			offset += digits[j] + PERFECT_SIZES[depth];
+			m_list[offset] = array[i];
 		}
+	}
+// perfect tree
+	else {
+		indextype digits[100];
+		m_list[PERFECT_SIZES[m_height - 1]] = array[0];
+		for (indextype i = 1; i < _size; i++) {
+			indextype pos = 0;
+			indextype ind = i;
+			while (ind != 0) {
+				indextype rmd = ind % k;
+				ind = ind / k;
+				digits[pos] = rmd;
+				pos++;
+			}
+			digits[pos] = 0;
+			// pos--;
+			indextype j = 0;
+			while (digits[j] == k - 1)
+				j++;
+			indextype depth = m_height - j - 1;
+			indextype offset = 0;
+			for (indextype p = pos - 1; p > j; p--) {
+				offset = offset * k + digits[p] * (k - 1);
+			}
+			offset += digits[j] + PERFECT_SIZES[depth];
+			m_list[offset] = array[i];
+		}
+	}
+}
+
+class sorted_iterator;
+friend class sorted_iterator;
+sorted_iterator so_begin() const {
+	return sorted_iterator(this, PERFECT_SIZES[m_height - 1]);
+}
+sorted_iterator so_end() const {
+	return sorted_iterator(this, m_size - 1);
+}
+std::vector<keytype>::iterator se_begin() const {
+	return m_list.begin();
+}
+std::vector<keytype>::iterator se_end() const {
+	return m_list.end();
+}
+class sorted_iterator: public std::iterator<std::forward_iterator_tag, keytype> {
+public:
+	keytype const& operator*() const {
+		return m_tree->m_list[m_pos];
+	}
+	keytype const& operator->() const {
+		return m_tree->m_list[m_pos];
+	}
+	iterator& operator++() {
+
+		return *this;
+	}
+	bool operator==(sorted_iterator const& other) const {
+		assert(m_tree == other.m_tree);
+		return m_pos == other.m_pos;
+	}
+	bool operator!=(sorted_iterator const& other) const {
+		return !(*this == other);
 	}
 
-	class sorted_iterator;
-	friend class sorted_iterator;
-	sorted_iterator so_begin() const {
-		return sorted_iterator(this, PERFECT_SIZES[m_height - 1]);
-	}
-	sorted_iterator so_end() const {
-		return sorted_iterator(this, m_size - 1);
-	}
-	std::vector<keytype>::iterator se_begin() const {
-		return m_list.begin();
-	}
-	std::vector<keytype>::iterator se_end() const {
-		return m_list.end();
-	}
-	class sorted_iterator: public std::iterator<std::forward_iterator_tag,
-			keytype> {
-	public:
-		keytype const& operator*() const {
-			return m_tree->m_list[m_pos];
-		}
-		keytype const& operator->() const {
-			return m_tree->m_list[m_pos];
-		}
-		iterator& operator++() {
-
-			return *this;
-		}
-		bool operator==(sorted_iterator const& other) const {
-			assert(m_tree == other.m_tree);
-			return m_pos == other.m_pos;
-		}
-		bool operator!=(sorted_iterator const& other) const {
-			return !(*this == other);
-		}
-
-	private:
-		friend class ktree;
-		sorted_iterator(ktree const* _tree, indextype pos) :
-				m_tree(_tree), m_pos(pos) {
-
-		}
-		ktree* m_tree;
-		indextype m_pos;
-	};
 private:
-	indextype m_size;
-	indextype m_height;
-	std::vector<keytype> m_list;
+	friend class ktree;
+	sorted_iterator(ktree const* _tree, indextype pos) :
+			m_tree(_tree), m_pos(pos) {
+
+	}
+	ktree* m_tree;
+	indextype m_pos;
+};
+private:
+indextype m_height;
+std::vector<keytype> m_list;
 };
 
 }
 
 int main(void) {
-	using namespace karytree;
+using namespace karytree;
 
-	std::vector<keytype> vec(32);
-	initializeArrayLength(vec);
+std::vector<keytype> vec(32);
+initializeArrayLength(vec);
 
-	ClusteredDataGenerator sdg;
-	std::vector<keytype> ans = sdg.generate(20, 20);
-	construct_tree(ans.data(), ans.size());
+ClusteredDataGenerator sdg;
+std::vector<keytype> ans = sdg.generate(20, 20);
+construct_tree(ans.data(), ans.size());
 
-	for (indextype i = 0; i < 20; i++) {
-		indextype ind = next_pos(i, 20);
-		std::cout << i << ": " << ind << std::endl;
-	}
+for (indextype i = 0; i < 20; i++) {
+	indextype ind = next_pos(i, 20);
+	std::cout << i << ": " << ind << std::endl;
+}
 
-	keytype goal = 1;
-	for (uint32_t goal = 0; goal < 26; goal++) {
-		indextype pos = search_sorted_array(goal, ans.data(), ans.size() - 1);
-		if (ans[pos] != goal)
-			std::cout << "bad! Found ";
-		else
-			std::cout << "good! Found ";
-		std::cout << ans[pos] << " for " << goal << std::endl;
-	}
-	return 0;
+keytype goal = 1;
+for (uint32_t goal = 0; goal < 26; goal++) {
+	indextype pos = search_sorted_array(goal, ans.data(), ans.size() - 1);
+	if (ans[pos] != goal)
+		std::cout << "bad! Found ";
+	else
+		std::cout << "good! Found ";
+	std::cout << ans[pos] << " for " << goal << std::endl;
+}
+return 0;
 }
