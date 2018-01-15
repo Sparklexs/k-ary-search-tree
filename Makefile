@@ -8,11 +8,11 @@ endif
 
 HEADERS = $(shell ls include/*.h*)
 
-OBJS =		k-ary_search_tree.o intersection.o
+OBJS =	 intersection.o# k-ary_search_tree.o k-ary_search_tree_trial.o
 
 LIBS =
 
-TARGET =	k-ary_search_tree
+TARGET =	benchintersection
 
 all: $(TARGET)
 	@echo "finish!"
@@ -20,11 +20,17 @@ all: $(TARGET)
 intersection.o: src/intersection.cpp include/common.h
 	$(CXX) $(CXXFLAGS) -Iinclude -c src/intersection.cpp
 	
-k-ary_search_tree.o: src/k-ary_search_tree.cpp intersection.o $(HEADERS)
-	$(CXX) $(CXXFLAGS) -Iinclude -c src/k-ary_search_tree.cpp
+#k-ary_search_tree.o: intersection.o $(HEADERS)
+#	$(CXX) $(CXXFLAGS) -Iinclude -o k-ary_search_tree.o -c include/k-ary_search_tree.hpp
+#	
+#k-ary_search_tree_trial.o: intersection.o $(HEADERS)
+#	$(CXX) $(CXXFLAGS) -Iinclude -o k-ary_search_tree_trial.o -c include/k-ary_search_tree_trial.hpp
+
+benchintersection: $(HEADERS) $(OBJS) src/benchintersection.cpp
+	$(CXX) $(CXXFLAGS) -Iinclude -o benchintersection src/benchintersection.cpp intersection.o
 	
-$(TARGET):	$(OBJS) $(HEADERS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
+#$(TARGET):	$(OBJS) $(HEADERS)
+#	$(CXX) $(CXXFLAGS) -Iinclude -o $(TARGET) src/benchintersection.cpp $(OBJS) $(LIBS)
 
 
 clean:
