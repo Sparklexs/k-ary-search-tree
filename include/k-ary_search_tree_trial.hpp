@@ -48,11 +48,13 @@ inline void initializeArrayLength(std::vector<keytype>& vec) {
  * @return height are always larger than 1
  */
 indextype getTreeHeight(indextype size) {
-	indextype height = 2;
+	indextype height = 0;
 	while (PERFECT_SIZES[height] < size)
 		height++;
 	return height;
 }
+
+/////////////////////////////////////////////////////////////////
 
 /*
  * @endindex = size - 1
@@ -162,7 +164,7 @@ indextype search_linearized_tree_bounded(int *foundp, keytype goal,
 
 // always start search from root and return target (depth,rank)
 template<indextype k = 3>
-indextype search_linearized_tree_bounded1(int *foundp, keytype goal,
+indextype search_linearized_tree_with_result(int *foundp, keytype goal,
 		const keytype *target, indextype &depth, indextype &rank,
 		indextype endindex) {
 	indextype next = 0, left;
@@ -190,6 +192,8 @@ indextype search_linearized_tree_bounded1(int *foundp, keytype goal,
 	*foundp = 0;
 	return left + m;
 }
+
+/////////////////////////////////////////////////////////////////
 
 /*
  * deprecated!
@@ -392,6 +396,23 @@ indextype next_pos(indextype pos, indextype size) {
 	}
 }
 
+// sequentially output the values in ascending order
+template<indextype k = 3>
+void traverse_tree(keytype *pointer, indextype rank, indextype depth,
+		indextype size) {
+	for (indextype i = 0; i < k; i++) {
+		if (PERFECT_SIZES[depth + 1] + (k * rank + i) * (k - 1) < size) {
+			traverse_tree(pointer, rank * k + i, depth + 1, size);
+		}
+		if (i != k - 1)
+			std::cout << pointer[PERFECT_SIZES[depth] + (k - 1) * rank + i]
+					<< ",";
+	}
+	std::cout << std::endl;
+}
+
+/////////////////////////////////////////////////////////////////
+
 template<indextype k = 3>
 void construct_tree(keytype* array, indextype size) {
 	indextype height = getTreeHeight(size);
@@ -487,16 +508,23 @@ void construct_tree(keytype* array, indextype size) {
 template<indextype k = 3>
 void reorder(keytype *index_array, indextype rank, indextype depth,
 		indextype height, keytype *index_tree) {
-	if (height) {
-		for (indextype i = 0; i < k - 1; i++) {
-			index_tree[PERFECT_SIZES[depth] + (k - 1) * rank + i] =
-					index_array[PERFECT_SIZES[height - 1] * (i + 1) + i];
-		}
-		if (--height) {
-			for (indextype i = 0; i < k; i++) {
-				reorder<k>(index_array + i * (PERFECT_SIZES[height] + 1),
-						rank * k + i, depth + 1, height, index_tree);
-			}
+	for (indextype i = 0; i < k - 1; i++) {
+		index_tree[PERFECT_SIZES[depth] + (k - 1) * rank + i] =
+				index_array[PERFECT_SIZES[height - 1] * (i + 1) + i];
+	}
+	if (--height) {
+		// FIXME: 1. for the leaf leaf level
+		// we have only k-1 elements left
+		// and they can be sequentially
+		// copied to destination address
+		// 2. index_tree should be also
+		// updated for less computation
+		// 3. merge this for-loop with
+		// the previous one?
+
+		for (indextype i = 0; i < k; i++) {
+			reorder<k>(index_array + i * (PERFECT_SIZES[height] + 1),
+					rank * k + i, depth + 1, height, index_tree);
 		}
 	}
 }
@@ -505,7 +533,8 @@ template<indextype k = 3>
 void reorder_with_remainder(keytype *index_array, indextype size,
 		indextype remainder, indextype rank, indextype depth, indextype height,
 		keytype *index_tree) {
-	indextype branch = remainder * k / (K_s[height - 1] * (k - 1));
+	// @branch denotes the branch where lies the complete subtree
+	indextype branch = remainder / (K_s[height - 2] * (k - 1));
 	//if no complete tree exists, there will have a overlapping of one parent node
 
 	// 1. the left sibling nodes are perfect trees with height of h-1
@@ -519,7 +548,10 @@ void reorder_with_remainder(keytype *index_array, indextype size,
 	}
 
 	// 2. the 'branch'-th subtree is one complete tree with height of h-1
-	// and it only exists when following condition is true
+	// or h-2 and it only exists when following condition is true
+	// FIXME: what if complete tree becomes a perfect tree of h-2?
+	// the remainder becomes 0 and are the following codes compatible
+	// with such situation?
 	if (remainder % ((K_s[height - 1] * (k - 1)) / k)) {
 		indextype next_remainder = remainder
 				% ((K_s[height - 1] * (k - 1)) / k);
@@ -546,10 +578,12 @@ void reorder_with_remainder(keytype *index_array, indextype size,
 		index_tree[PERFECT_SIZES[depth] + rank * (k - 1) + i] =
 				right_sibling_start[(i - branch) * PERFECT_SIZES[height - 2]
 						+ (i - branch)];
-		reorder<k>(
-				right_sibling_start + (i - branch) * PERFECT_SIZES[height - 2]
-						+ (i + 1 - branch), rank * k + i + 1/*rank*/, depth + 1,
-				height - 2, index_tree);
+		if (height != 2)
+			reorder<k>(
+					right_sibling_start
+							+ (i - branch) * PERFECT_SIZES[height - 2]
+							+ (i + 1 - branch), rank * k + i + 1/*rank*/,
+					depth + 1, height - 2, index_tree);
 	}
 }
 
@@ -574,18 +608,7 @@ void construct_tree_fast(keytype* array, indextype size) {
 	memmove(array, tmp.data(), size * sizeof(keytype));
 }
 
-template<indextype k = 3>
-void traverse_tree(keytype *pointer, indextype rank, indextype depth,
-		indextype size) {
-	for (indextype i = 0; i < k; i++) {
-		if (PERFECT_SIZES[depth + 1] + (k * rank + i) * (k - 1) < size) {
-			traverse_tree(pointer, rank * k + i, depth + 1, size);
-		}
-		if (i != k - 1)
-			std::cout << pointer[PERFECT_SIZES[depth] + (k - 1) * rank + i]
-					<< std::endl;
-	}
-}
+/////////////////////////////////////////////////////////////////
 
 template<indextype k = 3>
 void intersect_sequential(keytype *small, indextype size_small, keytype *large,
@@ -627,7 +650,7 @@ void intersect_sorted(keytype *small, indextype size_small, keytype *large,
 	search(0, 0);
 }
 
-// without both DCR and early termination
+// without both LCA and early termination
 template<indextype k = 3>
 void intersect_hierarchical(keytype *small, indextype size_small,
 		keytype *large, indextype size_large, std::vector<keytype> & out) {
@@ -660,6 +683,9 @@ void intersect_hierarchical(keytype *small, indextype size_small,
 	search(0, 0);
 }
 
+/////////////////////////////////////////////////////////////////
+
+/*** just a copy from sequential, need specialization before use ***/
 template<indextype k>
 void intersect_sequential_bounded(keytype *small, indextype size_small,
 		keytype *large, indextype size_large, std::vector<keytype> & out) {
@@ -688,15 +714,17 @@ void intersect_sequential_bounded<3>(keytype *small, indextype size_small,
 	indextype depth_rm, rank_rm;
 	if (_LIKELY(remainder_large)) {
 		depth_rm = height_large - 2;
-		rank_rm = K_s[height_large - 2];
+		rank_rm = K_s[height_large - 2] - 1;
 	} else {
 		depth_rm = height_large - 1;
-		rank_rm = K_s[height_large - 1];
+		rank_rm = K_s[height_large - 1] - 1;
 	}
 
 	indextype height_small = getTreeHeight(size_small);
 	indextype remainder_small = size_small - PERFECT_SIZES[height_small];
 
+	// here are two ranges used to store the boundries(depths and ranks)
+	// for each level
 	std::vector<indextype> range1((K_s[height_small - 1]) << 2);
 	std::vector<indextype> range2((K_s[height_small - 1]) << 2);
 	indextype *p1 = range1.data();
@@ -729,6 +757,7 @@ void intersect_sequential_bounded<3>(keytype *small, indextype size_small,
 				continue;
 			}
 			indextype ii = 0;
+			// -1 means no intersection exists here, we can safely skip
 			while (p1[(rank << 1) + 2 + ii] == -1) {
 				ii += 2;
 			}
@@ -763,8 +792,13 @@ void intersect_sequential_bounded<3>(keytype *small, indextype size_small,
 				// left end
 				// its left children are eliminated
 				p2[rank * 6] = -1;
-			} else if (_UNLIKELY(
-					pos - PERFECT_SIZES[_rdepth] - (_rrank << 1) == 2)) {
+			} else if (_rdepth
+					== p1[(rank << 1) + 2 + ii]&&
+					_UNLIKELY(pos-PERFECT_SIZES[p1[(rank << 1) + 2 + ii]]-(p1[(rank << 1)
+									+ 3 + ii]<<1)==2)) {
+//			else if (_UNLIKELY(
+//					pos - PERFECT_SIZES[_rdepth] - (_rrank << 1) == 2)) {
+
 				// right end
 				// its right sibling and right children are eliminated
 				p2[rank * 6 + 2] = p2[rank * 6 + 4] = -1;
@@ -804,8 +838,12 @@ void intersect_sequential_bounded<3>(keytype *small, indextype size_small,
 				// left end
 				// its left children are eliminated
 				p2[rank * 6 + 2] = -1;
-			} else if (_UNLIKELY(
-					pos - PERFECT_SIZES[_rdepth] - (_rrank << 1) == 2)) {
+			} else if (_rdepth
+					== p1[(rank << 1) + 2 + ii]&&
+					_UNLIKELY(pos-PERFECT_SIZES[p1[(rank << 1) + 2 + ii]]-(p1[(rank << 1)
+									+ 3 + ii]<<1)==2)) {
+//			else if (_UNLIKELY(
+//					pos - PERFECT_SIZES[_rdepth] - (_rrank << 1) == 2)) {
 				// right end
 				// its right children are eliminated
 				p2[rank * 6 + 4] = -1;
@@ -881,7 +919,7 @@ void intersect_sequential_bounded<3>(keytype *small, indextype size_small,
 	}
 }
 
-// default k is 3 and no early termination is included
+// default k is 3 and no early termination included
 void intersect_sequential_bounded_withoutET(keytype *small,
 		indextype size_small, keytype *large, indextype size_large,
 		std::vector<keytype> & out) {
@@ -894,10 +932,10 @@ void intersect_sequential_bounded_withoutET(keytype *small,
 	indextype depth_rm, rank_rm;
 	if (_LIKELY(remainder_large)) {
 		depth_rm = height_large - 2;
-		rank_rm = K_s[height_large - 2];
+		rank_rm = K_s[height_large - 2] - 1;
 	} else {
 		depth_rm = height_large - 1;
-		rank_rm = K_s[height_large - 1];
+		rank_rm = K_s[height_large - 1] - 1;
 	}
 
 	indextype height_small = getTreeHeight(size_small);
@@ -908,13 +946,13 @@ void intersect_sequential_bounded_withoutET(keytype *small,
 	indextype *p1 = range1.data();
 	indextype *p2 = range2.data();
 
-	// leftmost node never changes
+// leftmost node never changes
 	p2[0] = p1[0] = height_large - 1;
 	p2[1] = p1[1] = 0;
 	p1[2] = depth_rm;
 	p1[3] = rank_rm - 1;
 
-	// intersection begins here
+// intersection begins here
 	indextype depth = 0;
 	if (_LIKELY(remainder_small))
 		remainder_small = (size_small - PERFECT_SIZES[height_small - 1]) >> 1;
@@ -1029,22 +1067,24 @@ void intersect_sequential_bounded_withoutET(keytype *small,
 	}
 }
 
-// with DCR and early termination
+/////////////////////////////////////////////////////////////////
+
+// with LCA and early termination
 template<indextype k = 3>
 void intersect_hierarchical_bounded(keytype *small, indextype size_small,
 		keytype *large, indextype size_large, std::vector<keytype> & out) {
 	out.clear();
 	int found = 0;
-	// the rightmost node in the large tree
+// the rightmost node in the large tree
 	indextype depth_rm, rank_rm;
 	indextype height = getTreeHeight(size_large);
 	indextype remainder = size_large - PERFECT_SIZES[height];
 	if (_LIKELY(remainder)) {
 		depth_rm = height - 2;
-		rank_rm = K_s[height - 3];
+		rank_rm = K_s[height - 2] - 1;
 	} else {
 		depth_rm = height - 1;
-		rank_rm = K_s[height - 2];
+		rank_rm = K_s[height - 1] - 1;
 	}
 
 	std::function<
@@ -1083,18 +1123,111 @@ void intersect_hierarchical_bounded(keytype *small, indextype size_small,
 					if(found)
 					out.emplace_back(large[pos]);
 
-					// then the son nodes if exist
+//					std::cout<<"depth: "<<depth<<", rank: "<<(k - 1) * rank + i<<", value: "
+//					<<small[PERFECT_SIZES[depth] + (k - 1) * rank + i]<<", found: "<<found<<std::endl;
+
+					// then the left son nodes if exist
+					// left early termination
 					if(_LIKELY(!(pos==PERFECT_SIZES[depth_left]+rank_left*(k-1)) &&
 									PERFECT_SIZES[depth + 1] + (k * rank + i) * (k - 1) < size_small)) {
 						search(depth + 1,rank * k + i,depth_left,rank_left,_rdepth,_rrank);
 					}
 
 					// do not modify again
-					if(_UNLIKELY(pos-PERFECT_SIZES[_rdepth]-_rrank*(k-1)==k-1))
+					// right early termination
+//					if(_UNLIKELY(pos-PERFECT_SIZES[_rdepth]-_rrank*(k-1)==k-1))
+//					if(_UNLIKELY(pos-PERFECT_SIZES[depth_right]-rank_right*(k-1)==k-1))
+//					if(_UNLIKELY(large[pos]>=large[PERFECT_SIZES[depth_right]+rank_right*(k-1)+k-2]))
+					if(_rdepth==depth_right&&
+							_UNLIKELY(pos-PERFECT_SIZES[depth_right]-rank_right*(k-1)==k-1))
 					return;
 					// update boundary nodes
-					depth_left=_rdepth;
-					rank_left=_rrank;
+					_ldepth=depth_left=_rdepth;
+					_lrank=rank_left=_rrank;
+				}
+
+				if(PERFECT_SIZES[depth + 1] + (k * rank + k-1) * (k - 1) < size_small) {
+					search(depth + 1,rank * k + k-1,depth_left,rank_left,depth_right,rank_right);
+				}
+			};
+	search(0, 0, height - 1, 0, depth_rm, rank_rm);
+}
+
+// with only LCA
+template<indextype k = 3>
+void intersect_hierarchical_bounded_withoutET(keytype *small,
+		indextype size_small, keytype *large, indextype size_large,
+		std::vector<keytype> & out) {
+	out.clear();
+	int found = 0;
+// the rightmost node in the large tree
+	indextype depth_rm, rank_rm;
+	indextype height = getTreeHeight(size_large);
+	indextype remainder = size_large - PERFECT_SIZES[height];
+	if (_LIKELY(remainder)) {
+		depth_rm = height - 2;
+		rank_rm = K_s[height - 2] - 1;
+	} else {
+		depth_rm = height - 1;
+		rank_rm = K_s[height - 1] - 1;
+	}
+
+	std::function<
+			void(indextype depth, indextype rank, indextype ldepth,
+					indextype lrank, indextype rdepth, indextype rrank)> search;
+	search =
+			[&]( indextype depth, indextype rank, indextype depth_left,
+					indextype rank_left, indextype depth_right, indextype rank_right)-> void {
+
+				indextype _lrank=rank_left,_ldepth=depth_left,_rrank,_rdepth;
+
+				// find the deepest common root
+				for(indextype i = 0; i < k - 1; i++) {
+					_rrank=rank_right,_rdepth=depth_right;
+
+//					if(_ldepth>_rdepth) {
+//						_lrank /= K_s[_ldepth - _rdepth];
+//					}
+//					else if(_ldepth<_rdepth) {
+//						_rrank /= K_s[_rdepth - _ldepth];
+//					}
+					_lrank/=K_s[_ldepth>_rdepth?_ldepth - _rdepth:0];
+					_rrank/=K_s[_rdepth>_ldepth?_rdepth - _ldepth:0];
+					_rdepth=min(_ldepth,_rdepth);
+
+					while(_lrank != _rrank) {
+						_rdepth--;
+						_lrank /= k;
+						_rrank /= k;
+					}
+
+					// now we can search the tree
+					indextype pos = search_linearized_tree_bounded<k>(&found,
+							small[PERFECT_SIZES[depth] + (k - 1) * rank + i],
+							large, _rdepth, _rrank, size_large - 1);
+					if(found)
+					out.emplace_back(large[pos]);
+
+//					std::cout<<"depth: "<<depth<<", rank: "<<(k - 1) * rank + i<<", value: "
+//					<<small[PERFECT_SIZES[depth] + (k - 1) * rank + i]<<", found: "<<found<<std::endl;
+
+					// then the left son nodes if exist
+					// left early termination
+					if(_LIKELY(PERFECT_SIZES[depth + 1] + (k * rank + i) * (k - 1) < size_small)) {
+						search(depth + 1,rank * k + i,depth_left,rank_left,_rdepth,_rrank);
+					}
+
+					// do not modify again
+					// right early termination
+//					if(_UNLIKELY(pos-PERFECT_SIZES[_rdepth]-_rrank*(k-1)==k-1))
+//					if(_UNLIKELY(pos-PERFECT_SIZES[depth_right]-rank_right*(k-1)==k-1))
+//					if(_UNLIKELY(large[pos]>=large[PERFECT_SIZES[depth_right]+rank_right*(k-1)+k-2]))
+//					if(_rdepth==depth_right&&
+//							_UNLIKELY(pos-PERFECT_SIZES[depth_right]-rank_right*(k-1)==k-1))
+//					return;
+					// update boundary nodes
+					_ldepth=depth_left=_rdepth;
+										_lrank=rank_left=_rrank;
 				}
 
 				if(PERFECT_SIZES[depth + 1] + (k * rank + k-1) * (k - 1) < size_small) {
@@ -1108,21 +1241,21 @@ void intersect_hierarchical_bounded(keytype *small, indextype size_small,
 // and its corresponding search
 // algorithm will always start from root
 template<indextype k = 3>
-void intersect_hierarchical_bounded_withoutDCR(keytype *small,
+void intersect_hierarchical_bounded_withoutLCA(keytype *small,
 		indextype size_small, keytype *large, indextype size_large,
 		std::vector<keytype> & out) {
 	out.clear();
 	int found = 0;
-	// the rightmost node in the large tree
+// the rightmost node in the large tree
 	indextype depth_rm, rank_rm;
 	indextype height = getTreeHeight(size_large);
 	indextype remainder = size_large - PERFECT_SIZES[height];
 	if (_LIKELY(remainder)) {
 		depth_rm = height - 2;
-		rank_rm = K_s[height - 3];
+		rank_rm = K_s[height - 2] - 1;
 	} else {
 		depth_rm = height - 1;
-		rank_rm = K_s[height - 2];
+		rank_rm = K_s[height - 1] - 1;
 	}
 
 	std::function<
@@ -1137,7 +1270,7 @@ void intersect_hierarchical_bounded_withoutDCR(keytype *small,
 					indextype _depth=0,_rank=0;
 
 					// now we can search the tree
-					indextype pos = search_linearized_tree_bounded1<k>(&found,
+					indextype pos = search_linearized_tree_with_result<k>(&found,
 							small[PERFECT_SIZES[depth] + (k - 1) * rank + i],
 							large, _depth, _rank, size_large - 1);
 					if(found)
@@ -1148,7 +1281,8 @@ void intersect_hierarchical_bounded_withoutDCR(keytype *small,
 									PERFECT_SIZES[depth + 1] + (k * rank + i) * (k - 1) < size_small)) {
 						search(depth + 1,rank * k + i,depth_left,rank_left,_depth,_rank);
 					}
-					if(_UNLIKELY(pos-PERFECT_SIZES[_depth]-_rank*(k-1)==k-1))
+					if(_depth==depth_right&&
+							_UNLIKELY(pos-PERFECT_SIZES[depth_right]-rank_right*(k-1)==k-1))
 					return;
 					// update boundary nodes
 					depth_left = _depth;
@@ -1162,154 +1296,5 @@ void intersect_hierarchical_bounded_withoutDCR(keytype *small,
 	search(0, 0, height - 1, 0, depth_rm, rank_rm);
 }
 
-template<indextype k = 3>
-class ktree_trial {
-public:
-	indextype size() const {
-		return m_list.size();
-	}
-
-	indextype height() const {
-		return m_height;
-	}
-
-	indextype k_size() const {
-		return k;
-	}
-
-	ktree_trial(const keytype* array, indextype _size) {
-
-		m_list.resize(_size);
-		m_height = getTreeHeight(_size);
-
-		indextype remainder = (_size) - PERFECT_SIZES[m_height];
-		indextype digits[100];
-		m_list[PERFECT_SIZES[m_height - 1]] = array[0];
-
-// complete tree
-		if (_LIKELY(remainder)) {
-			remainder = (_size) - PERFECT_SIZES[m_height - 1];
-			indextype fringe_entry = (remainder - 1) * k / (k - 1);
-
-			for (indextype i = 1; i <= fringe_entry; i++) {
-				indextype pos = 0;
-				indextype ind = i;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 1;
-				indextype offset = 0;
-				for (indextype p = pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
-			}
-			for (indextype i = fringe_entry + 1; i < _size; i++) {
-				indextype pos = 0;
-				indextype ind = i - remainder;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 2;
-				indextype offset = 0;
-				for (indextype p = pos - 1 > pos ? 0 : pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
-			}
-		}
-// perfect tree
-		else {
-			for (indextype i = 1; i < _size; i++) {
-				indextype pos = 0;
-				indextype ind = i;
-				while (ind != 0) {
-					indextype rmd = ind % k;
-					ind = ind / k;
-					digits[pos] = rmd;
-					pos++;
-				}
-				digits[pos] = 0;
-				// pos--;
-				indextype j = 0;
-				while (digits[j] == k - 1)
-					j++;
-				indextype depth = m_height - j - 1;
-				indextype offset = 0;
-				for (indextype p = pos - 1; p > j; p--) {
-					offset = offset * k + digits[p] * (k - 1);
-				}
-				offset += digits[j] + PERFECT_SIZES[depth];
-				m_list[offset] = array[i];
-			}
-		}
-	}
-
-	class sorted_iterator;
-	friend class sorted_iterator;
-	sorted_iterator so_begin() const {
-		return sorted_iterator(this, PERFECT_SIZES[m_height - 1]);
-	}
-	sorted_iterator so_end() const {
-		return sorted_iterator(this, this->size() - 1);
-	}
-	std::vector<keytype>::iterator se_begin() const {
-		return m_list.begin();
-	}
-	std::vector<keytype>::iterator se_end() const {
-		return m_list.end();
-	}
-	class sorted_iterator: public std::iterator<std::forward_iterator_tag,
-			indextype> {
-	public:
-		keytype const& operator*() const {
-			return m_tree->m_list[m_pos];
-		}
-		keytype const& operator->() const {
-			return m_tree->m_list[m_pos];
-		}
-		iterator& operator++() {
-
-			return *this;
-		}
-		bool operator==(sorted_iterator const& other) const {
-			assert(m_tree == other.m_tree);
-			return m_pos == other.m_pos;
-		}
-		bool operator!=(sorted_iterator const& other) const {
-			return !(*this == other);
-		}
-
-	private:
-		friend class ktree_trial;
-		sorted_iterator(ktree_trial const* _tree, indextype pos) :
-				m_tree(_tree), m_pos(pos) {
-
-		}
-		ktree_trial* m_tree;
-		indextype m_pos;
-	};
-private:
-	indextype m_height;
-	std::vector<keytype> m_list;
-};
 }
 

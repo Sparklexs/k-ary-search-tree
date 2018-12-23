@@ -431,6 +431,7 @@ mySet genMultipleSets(generator gen, uint32_t minlength, uint32_t howmany,
 	ZRandom rand;
 
 	// we basically assume that, if we do nothing, intersections are very small
+	// sxs: ensure the @intersize is dividable by 8
 	const uint32_t intersize = static_cast<uint32_t>(round(
 			static_cast<float>(minlength) * intersectionratio));
 
@@ -441,13 +442,15 @@ mySet genMultipleSets(generator gen, uint32_t minlength, uint32_t howmany,
 	vector<uint32_t> smallest = unite(
 			gen.generate(static_cast<uint32_t>(minlength - inter.size()), Max),
 			inter);
+	smallest.resize(smallest.size() & 4294967288);
 	vector<uint32_t> largest = unite(
 			gen.generate(static_cast<uint32_t>(maxlenth - inter.size()), Max),
 			inter);
-
+	largest.resize(largest.size() & 4294967288);
 	sets.insert(smallest);
 	sets.insert(largest);
 
+	// sxs: here we only need two sets
 	for (uint32_t i = 0; i < howmany - 2; i++) {
 		uint32_t length = rand.getValue(maxlenth - minlength);
 		sets.insert(
