@@ -436,9 +436,14 @@ mySet genMultipleSets(generator gen, uint32_t minlength, uint32_t howmany,
 			static_cast<float>(minlength) * intersectionratio));
 
 	// sxs: first generate the intersection set, then merge it with another random
-	// set to fill the smallest set, last merge it with the third set to fill the
+	// set to fill the smallest set, finally merge it with the third set to fill the
 	// largest set
+	std::cout << intersize << "," << Max << std::endl;
+
 	vector<uint32_t> inter = gen.generate(intersize, Max);
+
+	std::cout << "sxs" << std::endl;
+
 	vector<uint32_t> smallest = unite(
 			gen.generate(static_cast<uint32_t>(minlength - inter.size()), Max),
 			inter);

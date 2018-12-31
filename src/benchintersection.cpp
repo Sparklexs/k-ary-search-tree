@@ -8,9 +8,9 @@
 #include "k-ary_search_tree_trial.hpp"
 #include "intersection_functions.hpp"
 
-template<karytree_trial::indextype k = 3>
+template<karytree::indextype k = 3>
 void run() {
-	using namespace karytree_trial;
+	using namespace karytree;
 
 	vector<uint32_t> out;
 
@@ -57,6 +57,8 @@ void run() {
 						mySet multiset;
 
 						ClusteredDataGenerator cdg;
+//						std::cout << "we are here!" << std::endl;
+//						return;
 						multiset = genMultipleSets(cdg, minlength, num,
 								1U << MaxBit, static_cast<float>(sr), ir);
 
@@ -65,14 +67,13 @@ void run() {
 						std::vector<keytype> small(std::move(*it++));
 						std::vector<keytype> large(std::move(*it));
 
-						construct_tree_fast(small.data(), small.size());
-						construct_tree_fast(large.data(), large.size());
+						ktree<k> smalltree(small.data(), small.size());
+						ktree<k> largetree(large.data(), large.size());
 
 						timer.reset();
 						for (uint32_t howmany = 0; howmany < REPETITION;
 								++howmany) {
-							intersect_hierarchical<k>(small.data(),
-									small.size(), large.data(), large.size(),
+							intersect_hierarchical<k>(smalltree, largetree,
 									out);
 						}
 						times["hierarchical"] += timer.split();
@@ -80,8 +81,7 @@ void run() {
 						timer.reset();
 						for (uint32_t howmany = 0; howmany < REPETITION;
 								++howmany) {
-							intersect_sequential<k>(small.data(), small.size(),
-									large.data(), large.size(), out);
+							intersect_sequential<k>(smalltree, largetree, out);
 						}
 						times["sequential"] += timer.split();
 //
@@ -96,9 +96,8 @@ void run() {
 						timer.reset();
 						for (uint32_t howmany = 0; howmany < REPETITION;
 								++howmany) {
-							intersect_hierarchical_bounded<k>(small.data(),
-									small.size(), large.data(), large.size(),
-									out);
+							intersect_hierarchical_bounded<k>(smalltree,
+									largetree, out);
 						}
 						times["hierarchical_bounded"] += timer.split();
 
@@ -106,17 +105,15 @@ void run() {
 						for (uint32_t howmany = 0; howmany < REPETITION;
 								++howmany) {
 							intersect_hierarchical_bounded_withoutLCA<k>(
-									small.data(), small.size(), large.data(),
-									large.size(), out);
+									smalltree, largetree, out);
 						}
 						times["hierarchical_bounded_noLCA"] += timer.split();
 
 						timer.reset();
 						for (uint32_t howmany = 0; howmany < REPETITION;
 								++howmany) {
-							intersect_sequential_bounded<3>(small.data(),
-									small.size(), large.data(), large.size(),
-									out);
+							intersect_sequential_bounded<k>(smalltree,
+									largetree, out);
 						}
 						times["sequential_bounded"] += timer.split();
 
@@ -263,9 +260,9 @@ void run_hierarchical() {
 	} // for minlength
 }
 
-template<karytree_trial::indextype k = 3>
+template<karytree::indextype k = 3>
 void test() {
-	using namespace karytree_trial;
+//	using namespace karytree_trial;
 	using namespace karytree;
 	vector<uint32_t> out, out1;
 
@@ -342,11 +339,55 @@ void tree_construct_test() {
 //		std::cout << tree[i] << std::endl;
 }
 
+void generateMySets() {
+	uint32_t MaxBit = 31; // largest bit-length of element
+	uint32_t minlength;
+	size_t REPETITION = 1;
+	size_t CASES = 20;
+
+	vector<float> intersectionsratios = { 0.10, 0.20, 0.30, 0.40, 0.50, 0.60,
+			0.70, 0.80, 0.90, 1.00 };
+	vector<uint32_t> sizeratios = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
+			2048, 4096, 8192 };
+
+	for (uint32_t msb = 10; msb <= 14; ++msb) {
+		minlength = 1U << msb;
+
+		for (float ir : intersectionsratios) {
+			printf("intersection ratio: \e[32m%3.0f%%\e[0m\n", ir * 100);
+			for (uint32_t sr : sizeratios) {
+				printf("  size ratio: \e[32m%4d\e[0m\n", sr);
+
+				if (sr > 1000)
+					REPETITION = 100;
+				else
+					REPETITION = 200;
+
+				for (uint32_t num = 2; num < 3; num++) {
+					for (uint32_t instance = 0; instance < CASES; instance++) {
+						mySet multiset;
+
+						ClusteredDataGenerator cdg;
+						std::cout << "we are here!" << std::endl;
+						return;
+						cdg.generate(minlength, 1 << MaxBit);
+						multiset = genMultipleSets(cdg, minlength, num,
+								1U << MaxBit, static_cast<float>(sr), ir);
+
+					} // for CASES
+				} // for num
+			} // for size-ratio
+		} // for intersection-ratio
+	} // for minlength
+}
+
 int main(void) {
 
 //	test();
 //	tree_construct_test();
-	run<3>();
-	run_hierarchical();
+	generateMySets();
+
+//	run<3>();
+//	run_hierarchical();
 	return 0;
 }
